@@ -166,3 +166,4 @@ cython_debug/
 # Local files - aleluya
 venv_chirho
 tmp_chirho
+*.sqlite3
