@@ -11,7 +11,6 @@ import os
 import sys
 
 from discord.ext import commands
-from icecream import ic
 
 dotenv.load_dotenv()
 
@@ -78,8 +77,44 @@ class ChristianProgrammersAp1BotChirho:
             return 0
         return row_chirho[1] + 1
 
-    async def send_question_chirho(self, user_chirho: discord.User):
+    async def send_admin_user_response_chirho(self, user_chirho: discord.User):
+        """
+        Hallelujah, send the admin a report of a complete user a response.
+        :param user_chirho:
+        :return:
+        """
+        logger_chirho.info(f"Sending admin user response for {user_chirho}")
+        await self.admin_user_chirho.send(f"{user_chirho.name} has finished the application process.")
+        cursor_chirho = await self.db_connection_chirho.execute("""
+            SELECT pk_chirho from user_dms_chirho WHERE user_id_chirho = ? AND is_reset_chirho = 1 ORDER BY pk_chirho DESC LIMIT 1;
+        """, (user_chirho.id,))
+        row_chirho = await cursor_chirho.fetchone()
+        await cursor_chirho.close()
+        if not row_chirho:
+            begin_pk_chirho = 0
+        else:
+            begin_pk_chirho = row_chirho[0]
+        logger_chirho.info(f"User {user_chirho} minPK_chirho {begin_pk_chirho}.")
+        cursor_chirho = await self.db_connection_chirho.execute("""
+            SELECT question_index_chirho, content_chirho from user_dms_chirho WHERE user_id_chirho = ? AND pk_chirho > ? AND question_index_chirho < ? ORDER BY pk_chirho;
+        """, (user_chirho.id, begin_pk_chirho, len(self.questions_chirho)))
+        responses_chirho = []
+        async for row_chirho in cursor_chirho:
+            logger_chirho.info(f"Sending admin user response for {user_chirho} question id {row_chirho[0]} answer {row_chirho[1]}")
+            responses_chirho.append(f"{user_chirho.name}: {self.questions_chirho[row_chirho[0]]}\n{row_chirho[1]}")
+        await cursor_chirho.close()
+        await self.admin_user_chirho.send("\n".join(responses_chirho))
+
+
+    async def send_response_chirho(self, user_chirho: discord.User):
         question_index_chirho = await self.get_user_question_text_index_chirho(user_chirho)
+        if question_index_chirho >= len(self.questions_chirho):
+            logger_chirho.info(f"User {user_chirho} has finished the application process, current question index = {question_index_chirho}.")
+            if question_index_chirho >= len(self.questions_chirho):
+                await self.send_admin_user_response_chirho(user_chirho)
+
+            await user_chirho.send("Thank you for your application. We will review it soon, God bless in Jesus' name.")
+            return
         question_text_chirho = self.questions_chirho[question_index_chirho]
         await user_chirho.send(question_text_chirho)
 
@@ -109,9 +144,9 @@ class ChristianProgrammersAp1BotChirho:
         await self.db_connection_chirho.execute("""
             INSERT INTO user_dms_chirho (is_reset_chirho, user_id_chirho, user_name_chirho)
             VALUES (?, ?, ?);
-        """, (True, user_chirho.id, user_chirho.name))
+        """, (1, user_chirho.id, user_chirho.name))
         await self.db_connection_chirho.commit()
-        await self.send_question_chirho(user_chirho)
+        await self.send_response_chirho(user_chirho)
 
     def _setup_bot_chirho(self):
         bot_char_chirho = "?"
@@ -158,9 +193,9 @@ class ChristianProgrammersAp1BotChirho:
 
             if not message_chirho.content.startswith(bot_char_chirho) and message_chirho.channel.type == discord.ChannelType.private:
                 logger_chirho.info(f"on_message {message_chirho}")
-                await self.store_user_dm_chirho(message_chirho)
                 await self.detect_and_block_user_chirho(message_chirho.author)
-                await self.send_question_chirho(message_chirho.author)
+                await self.store_user_dm_chirho(message_chirho)
+                await self.send_response_chirho(message_chirho.author)
 
             elif message_chirho.content.startswith(bot_char_chirho+"apply"):
                 await apply(message_chirho)
