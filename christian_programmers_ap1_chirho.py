@@ -43,7 +43,12 @@ class ChristianProgrammersAp1BotChirho:
     async def _setup_tables_chirho(self):
         await self.db_connection_chirho.execute("""
             CREATE TABLE IF NOT EXISTS user_dms_chirho (
-                user_id_chirho INTEGER PRIMARY KEY,
+                pk_chirho INTEGER PRIMARY KEY AUTOINCREMENT,
+                date_time_chirho DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_reset_chirho BOOLEAN DEFAULT 0,
+                question_index_chirho INTEGER DEFAULT NULL,       
+                user_id_chirho INTEGER NOT NULL,
+                user_name_chirho TEXT NOT NULL,
                 content_chirho TEXT);
         """)
 
@@ -60,21 +65,63 @@ class ChristianProgrammersAp1BotChirho:
         :param user_chirho:
         :return:
         """
-        return 0
+        cursor_chirho = await self.db_connection_chirho.execute("""
+            SELECT is_reset_chirho, question_index_chirho from user_dms_chirho WHERE user_id_chirho = ? ORDER BY pk_chirho DESC LIMIT 1;
+        """, (user_chirho.id,))
+        row_chirho = await cursor_chirho.fetchone()
+        await cursor_chirho.close()
+
+        if row_chirho is None:
+            logger_chirho.exception(f"User {user_chirho} has no questions in the database.")
+            return 0
+        if row_chirho[0]:
+            return 0
+        return row_chirho[1] + 1
 
     async def send_question_chirho(self, user_chirho: discord.User):
         question_index_chirho = await self.get_user_question_text_index_chirho(user_chirho)
         question_text_chirho = self.questions_chirho[question_index_chirho]
         await user_chirho.send(question_text_chirho)
 
+    async def store_user_dm_chirho(self, message_chirho: discord.Message):
+        """
+        Hallelujah, store the user's DM in the database.
+        :param message_chirho:
+        :return:
+        """
+        question_index_chirho = await self.get_user_question_text_index_chirho(message_chirho.author)
+        await self.db_connection_chirho.execute("""
+            INSERT INTO user_dms_chirho (question_index_chirho, user_id_chirho, user_name_chirho, content_chirho)
+            VALUES (?, ?, ?, ?);
+        """, (question_index_chirho, message_chirho.author.id, message_chirho.author.name, message_chirho.content))
+        await self.db_connection_chirho.commit()
+
+    async def new_user_application_chirho(self, user_chirho: discord.User):
+        """
+        Start a new user application.
+        :param user_chirho:
+        :return:
+        """
+        await user_chirho.send(
+            "Thanks for applying to Christian Programmers! Please answer the following questions. "
+            "I am sorry we currently only read your answers without edits. "
+            "If you make a mistake you can type `?apply` to start from the beginning again.")
+        await self.db_connection_chirho.execute("""
+            INSERT INTO user_dms_chirho (is_reset_chirho, user_id_chirho, user_name_chirho)
+            VALUES (?, ?, ?);
+        """, (True, user_chirho.id, user_chirho.name))
+        await self.db_connection_chirho.commit()
+        await self.send_question_chirho(user_chirho)
+
     def _setup_bot_chirho(self):
+        bot_char_chirho = "?"
         description_chirho = """
         A bot that logs answers to the new member form for the Christian Programmers discord server.
         """
         intents_chirho = discord.Intents.default()
         intents_chirho.message_content = True
         intents_chirho.members = True
-        self.bot_chirho = commands.Bot(command_prefix="?", description=description_chirho, intents=intents_chirho)
+        self.bot_chirho = discord.Client(description=description_chirho, intents=intents_chirho)
 
         @self.bot_chirho.event
         async def on_ready():
@@ -86,15 +133,15 @@ class ChristianProgrammersAp1BotChirho:
             logger_chirho.info(str_chirho)
             await self.admin_user_chirho.send(str_chirho)
 
-        @self.bot_chirho.command()
-        async def apply(ctx_chirho: commands.Context):
-            # Hallelujah, for testing purposes
-            if ctx_chirho.author == self.bot_chirho.user:
+        async def apply(message_chirho: discord.Message):
+            if message_chirho.author == self.bot_chirho.user:
                 return
 
-            await ctx_chirho.channel.send(
+            logger_chirho.info("User %s has started a new application.", message_chirho.author)
+
+            await message_chirho.channel.send(
                 "Thank you for joining, please apply to the Christian Programmers server.",
-                view=JoinEmbedViewChirho(bot_chirho=self))
+                view=JoinEmbedViewChirho(cp_bot_chirho=self))
 
         @self.bot_chirho.event
         async def on_member_join(member_chirho: discord.User):
@@ -102,38 +149,37 @@ class ChristianProgrammersAp1BotChirho:
             channel_chirho = self.bot_chirho.get_channel(self.join_view_channel_chirho)
             await channel_chirho.send(
                 f"Welcome {member_chirho.name} to Christian Programmers! Please apply to the server.",
-                view=JoinEmbedViewChirho(bot_chirho=self))
+                view=JoinEmbedViewChirho(cp_bot_chirho=self))
 
         @self.bot_chirho.event
         async def on_message(message_chirho: discord.Message):
             if message_chirho.author == self.bot_chirho.user:
                 return
 
-            if message_chirho.channel.type == discord.ChannelType.private:
+            if not message_chirho.content.startswith(bot_char_chirho) and message_chirho.channel.type == discord.ChannelType.private:
                 logger_chirho.info(f"on_message {message_chirho}")
+                await self.store_user_dm_chirho(message_chirho)
                 await self.detect_and_block_user_chirho(message_chirho.author)
                 await self.send_question_chirho(message_chirho.author)
 
-            else:
-                # For testing purposes, hallelujah
-                await self.bot_chirho.process_commands(message_chirho)
+            elif message_chirho.content.startswith(bot_char_chirho+"apply"):
+                await apply(message_chirho)
 
     def run_bot_chirho(self):
         self.bot_chirho.run(self.token_chirho)
 
 
 class JoinEmbedViewChirho(discord.ui.View):
-    def __init__(self, *args_chirho, bot_chirho: ChristianProgrammersAp1BotChirho,  **kwargs_chirho):
+    def __init__(self, *args_chirho, cp_bot_chirho: ChristianProgrammersAp1BotChirho,  **kwargs_chirho):
         super().__init__(*args_chirho, **kwargs_chirho)
-        self.bot_chirho = bot_chirho
+        self.cp_bot_chirho = cp_bot_chirho
 
     @discord.ui.button(label='Join', style=discord.ButtonStyle.green)
     async def join_chirho(
             self, interaction_chirho: discord.Interaction, button_chirho: discord.ui.Button, ):
         # This is called once the button is clicked
         logger_chirho.info(f"Join button clicked by {interaction_chirho } {dir(interaction_chirho)}")
-        interaction_chirho.user.send("Thanks for applying to Christian Programmers!")
-        await self.bot_chirho.send_question_chirho(interaction_chirho.user)
+        await self.cp_bot_chirho.new_user_application_chirho(interaction_chirho.user)
         await interaction_chirho.message.delete()
 
 
