@@ -33,7 +33,7 @@ class ChristianProgrammersAp1BotChirho:
         self.token_chirho = os.getenv("TOKEN_CHIRHO")
         self.admin_user_id_chirho = int(os.getenv("ADMIN_USER_ID_CHIRHO"))
         self.sqlite_filename_chirho = os.getenv("SQLITE_FILENAME_CHIRHO", "christian_programmers_ap1_chirho.sqlite3")
-        self.join_view_channel_chirho = os.getenv("JOIN_VIEW_CHANNEL_CHIRHO", "general")
+        self.join_view_channel_id_chirho = int(os.getenv("JOIN_VIEW_CHANNEL_ID_CHIRHO", "general"))
         self.db_connection_chirho: Optional[aiosqlite.core] = None
         self.bot_chirho: Optional[commands.Bot] = None
         self.admin_user_chirho: Optional[discord.User] = None
@@ -110,7 +110,7 @@ class ChristianProgrammersAp1BotChirho:
         question_index_chirho = await self.get_user_question_text_index_chirho(user_chirho)
         if question_index_chirho >= len(self.questions_chirho):
             logger_chirho.info(f"User {user_chirho} has finished the application process, current question index = {question_index_chirho}.")
-            if question_index_chirho >= len(self.questions_chirho):
+            if question_index_chirho == len(self.questions_chirho):
                 await self.send_admin_user_response_chirho(user_chirho)
 
             await user_chirho.send("Thank you for your application. We will review it soon, God bless in Jesus' name.")
@@ -180,8 +180,8 @@ class ChristianProgrammersAp1BotChirho:
 
         @self.bot_chirho.event
         async def on_member_join(member_chirho: discord.User):
-            logger_chirho.info(f"on_member_join {member_chirho}")
-            channel_chirho = self.bot_chirho.get_channel(self.join_view_channel_chirho)
+            logger_chirho.info(f"on_member_join {member_chirho} notify {self.join_view_channel_id_chirho}")
+            channel_chirho = self.bot_chirho.get_channel(self.join_view_channel_id_chirho)
             await channel_chirho.send(
                 f"Welcome {member_chirho.name} to Christian Programmers! Please apply to the server.",
                 view=JoinEmbedViewChirho(cp_bot_chirho=self))
@@ -199,6 +199,11 @@ class ChristianProgrammersAp1BotChirho:
 
             elif message_chirho.content.startswith(bot_char_chirho+"apply"):
                 await apply(message_chirho)
+
+            elif message_chirho.content.startswith(bot_char_chirho+"test_chirho"):
+                logger_chirho.info("Sending info to " + str(self.join_view_channel_id_chirho))
+                channel_chirho = self.bot_chirho.get_channel(self.join_view_channel_id_chirho)
+                await channel_chirho.send("Hallelujah, this is a test message from the bot.")
 
     def run_bot_chirho(self):
         self.bot_chirho.run(self.token_chirho)
