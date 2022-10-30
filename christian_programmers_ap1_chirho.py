@@ -175,7 +175,7 @@ class ChristianProgrammersAp1BotChirho:
             logger_chirho.info("User %s has started a new application.", message_chirho.author)
 
             await message_chirho.channel.send(
-                "Thank you for joining, please apply to the Christian Programmers server.",
+                f"Thank you {message_chirho.author.name} for joining, please apply to the Christian Programmers server.",
                 view=JoinEmbedViewChirho(cp_bot_chirho=self))
 
         @self.bot_chirho.event
